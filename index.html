@@ -2,7 +2,6 @@
 <html lang="kk">
 <head>
     <meta charset="UTF-8">
-    <!-- Улучшенный viewport для запрета масштабирования на мобильных -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>NIS 8 March</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -15,7 +14,7 @@
             user-select: none;
             margin: 0;
             touch-action: none;
-            overscroll-behavior: none; /* Запрет pull-to-refresh на смартфонах */
+            overscroll-behavior: none;
         }
         .fancy-title {
             font-family: 'Pacifico', cursive;
@@ -26,7 +25,7 @@
             width: 100%;
             max-width: 1024px;
             height: 100vh;
-            max-height: 800px; /* Немного увеличили для современных вытянутых смартфонов */
+            max-height: 800px;
             margin: 0 auto;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
             background: #e0f2fe;
@@ -146,7 +145,6 @@
         </div>
         
         <div id="ui-layer">
-            <!-- Экран старта -->
             <div id="start-screen" class="glass-panel p-5 md:p-8 text-center w-full max-w-md shadow-2xl transform transition-all">
                 
                 <div class="flex justify-center mb-4">
@@ -177,7 +175,6 @@
                 </button>
             </div>
 
-            <!-- Экран завершения -->
             <div id="game-over-screen" class="glass-panel p-5 md:p-8 text-center w-full max-w-md shadow-2xl hidden">
                 <div class="text-4xl md:text-5xl mb-2">💐</div>
                 <h2 class="fancy-title text-3xl md:text-4xl text-pink-500 mb-2 glow-text" id="end-title">8 Наурызбен!</h2>
@@ -221,7 +218,7 @@
             'kk': {
                 title: '8 Наурыз',
                 subtitle: 'Мерекелік марафон',
-                desc: 'Мектеп ішінде жүгіріңіз, қағазбастылықтан секіріп, марапаттар жинаңыз!',
+                desc: 'Мектеп ішінде жүгіріңіз, құжаттардан секіріп, марапаттар жинаңыз!',
                 control: '⬆️ Басу, Бос орын немесе Жоғары — секіру',
                 start: 'БАСТАУ',
                 endTitle: '8 Наурызбен!',
@@ -316,12 +313,12 @@
 
         const GRAVITY = 0.8;
         const JUMP_POWER = -16.0; 
-        const BASE_SPEED = 9.1; // +30% speed
-        const SPEED_INC = 0.00065; 
+        const BASE_SPEED = 8.2; // Уменьшено на 10% (с 9.1 до 8.2)
+        const SPEED_INC = 0.00058; // Уменьшено на 10% (с 0.00065 до 0.00058)
         const LEVEL_DURATION = 300; 
         const WIN_SCORE = 1400; 
 
-        // --- GLOBAL VARIABLES DECLARATION ---
+        // --- GLOBAL VARIABLES ---
         let WIDTH, HEIGHT, groundY;
         let gameActive = false;
         let isWinning = false;
@@ -332,6 +329,9 @@
         let currentLevel = 0; 
         let bgOffset = 0;
         
+        let highScore = localStorage.getItem('nisRunHighScore_v8') || 0;
+        highScoreText.innerText = String(Math.floor(highScore)).padStart(5, '0');
+
         let player = {
             x: 0, y: 0, width: 40, height: 80,
             dy: 0, isJumping: false, runFrame: 0
@@ -342,9 +342,6 @@
         let floatingTexts = [];
         let tulips = []; 
         let fireworks = []; 
-        
-        let highScore = localStorage.getItem('nisRunHighScore_v8') || 0;
-        highScoreText.innerText = String(Math.floor(highScore)).padStart(5, '0');
 
         function initCanvas() {
             WIDTH = gameWrapper.clientWidth;
@@ -354,7 +351,6 @@
             ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
             groundY = HEIGHT * 0.8;
             
-            // Корректная позиция при изменении размера окна
             player.x = WIDTH * 0.1;
             if (player.y + player.height >= groundY || !gameActive) {
                 player.y = groundY - player.height;
@@ -426,11 +422,14 @@
                         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
                         ctx.fillStyle = '#ffffff'; ctx.font = 'bold 24px Montserrat'; ctx.textAlign = 'center'; ctx.fillText(this.grade, this.w/2, this.h/2 + 8);
                     } else if (this.type === 'PAPER_STACK') {
+                        // Улучшенная рисовка документов
                         ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 5, this.w, this.h - 5);
                         ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.strokeRect(0, 5, this.w, this.h - 5);
                         ctx.fillStyle = '#ffffff'; ctx.fillRect(5, 0, this.w - 10, this.h); ctx.strokeRect(5, 0, this.w - 10, this.h);
+                        // Строки текста
                         ctx.fillStyle = '#e2e8f0';
                         for(let i=10; i<this.h-10; i+=6) { ctx.fillRect(10, i, this.w - 20, 3); }
+                        // Красный минус
                         ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(this.w/2, this.h/2, 14, 0, Math.PI*2); ctx.fill();
                         ctx.fillStyle = '#ffffff'; ctx.fillRect(this.w/2 - 7, this.h/2 - 2, 14, 4); 
                     } else if (this.type === 'FURNITURE') {
@@ -454,8 +453,8 @@
 
                     if (this.type === 'FLOWER') {
                         ctx.shadowColor = this.flowerType === 'TULIP' ? '#fbbf24' : '#f43f5e';
-                        ctx.fillStyle = '#4ade80'; ctx.fillRect(this.w/2 - 2, 20, 4, 20); 
-                        ctx.beginPath(); ctx.ellipse(this.w/2 - 6, 30, 8, 3, Math.PI/4, 0, Math.PI*2); ctx.fill(); 
+                        ctx.fillStyle = '#4ade80'; ctx.fillRect(this.w/2 - 2, 20, 4, 20); // Стебель
+                        ctx.beginPath(); ctx.ellipse(this.w/2 - 6, 30, 8, 3, Math.PI/4, 0, Math.PI*2); ctx.fill(); // Листик
                         if (this.flowerType === 'TULIP') {
                             ctx.fillStyle = '#fbbf24'; 
                             ctx.beginPath(); ctx.moveTo(this.w/2, 0); ctx.lineTo(10, 20); ctx.lineTo(30, 20); ctx.fill();
@@ -465,12 +464,14 @@
                             ctx.fillStyle = '#fda4af'; ctx.beginPath(); ctx.arc(this.w/2 - 3, 7, 5, 0, Math.PI*2); ctx.fill();
                         }
                     } else if (this.type === 'MONEY') {
+                        // Улучшенная пачка купюр
                         ctx.shadowColor = '#10b981';
                         ctx.fillStyle = '#22c55e'; ctx.fillRect(0, 10, this.w, 20); 
                         ctx.strokeStyle = '#15803d'; ctx.lineWidth = 2; ctx.strokeRect(0, 10, this.w, 20);
                         ctx.fillStyle = '#f8fafc'; ctx.fillRect(15, 10, 10, 20); 
                         ctx.fillStyle = '#15803d'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('₸', this.w/2, 26);
                     } else if (this.type === 'CERTIFICATE') {
+                        // Улучшенный сертификат
                         ctx.fillStyle = '#f8fafc'; ctx.fillRect(5, 0, 30, 40); 
                         ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.strokeRect(5, 0, 30, 40);
                         ctx.fillStyle = '#94a3b8'; ctx.fillRect(10, 10, 20, 2); ctx.fillRect(10, 15, 15, 2);
@@ -683,10 +684,12 @@
                     drawWindows(0);
                     ctx.fillStyle = '#ef4444'; ctx.fillRect(0, groundY + 10, 2400, 20); 
                     drawTV(100, groundY - 100); 
+                    
                     ctx.font = 'bold 42px "Montserrat"';
                     ctx.fillStyle = '#3b82f6'; ctx.fillText('ib', 400, groundY - 180);
                     ctx.fillStyle = '#f97316'; ctx.fillText('CIS', 900, groundY - 180);
                     ctx.fillStyle = '#22c55e'; ctx.fillText('kiva', 1400, groundY - 180);
+                    
                     ctx.fillStyle = '#bae6fd'; ctx.fillRect(1800, groundY - 200, 140, 180); 
                     ctx.fillStyle = '#e2e8f0'; ctx.fillRect(1800, groundY - 210, 140, 10); 
                     const time = Date.now() / 20;
@@ -697,6 +700,7 @@
                     }
                     const flagColors = ['#ef4444', '#3b82f6', '#10b981', '#fbbf24', '#8b5cf6'];
                     for(let f=0; f<5; f++) { ctx.fillStyle = flagColors[f]; ctx.fillRect(1820 + f*22, groundY - 225, 18, 12); }
+
                     ctx.fillStyle = '#1e293b'; ctx.fillRect(2100, groundY - 60, 50, 60); 
                     ctx.fillStyle = '#ffffff'; ctx.fillRect(2100, groundY - 30, 50, 8); 
                     for(let k=2102; k<2150; k+=8) { ctx.fillStyle='#000'; ctx.fillRect(k, groundY-30, 4, 5); }
@@ -792,19 +796,9 @@
 
             // Волосы (Аккуратная прическа с пучком, открытое лицо)
             ctx.fillStyle = '#3e2723';
-            // Основной объем волос (полукруг сверху, не закрывающий глаза)
-            ctx.beginPath(); 
-            ctx.arc(headX, headY - 4, 14.5, Math.PI, 0); 
-            ctx.fill(); 
-            
-            // Пучок сзади
-            ctx.beginPath(); 
-            ctx.arc(headX - 15, headY - 2, 8, 0, Math.PI*2); 
-            ctx.fill();
-            
-            // Резинка в цвет платья
-            ctx.fillStyle = '#831843'; 
-            ctx.fillRect(headX - 11, headY - 6, 4, 8);
+            ctx.beginPath(); ctx.arc(headX, headY - 4, 14.5, Math.PI, 0); ctx.fill(); 
+            ctx.beginPath(); ctx.arc(headX - 15, headY - 2, 8, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#831843'; ctx.fillRect(headX - 11, headY - 6, 4, 8);
 
             // Рука
             const armSwing = player.isJumping || isWinning ? 0 : -Math.sin(player.runFrame) * 12;
