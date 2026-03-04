@@ -132,8 +132,9 @@
 </head>
 <body>
 
-    <audio id="bg-music" loop>
-        <source src="https://cdn.pixabay.com/audio/2022/02/22/audio_d1718ab41b.mp3" type="audio/mpeg">
+    <!-- Звук получения бонуса -->
+    <audio id="bonus-sound">
+        <source src="https://cdn.pixabay.com/audio/2021/08/04/audio_0625c1539c.mp3" type="audio/mpeg">
     </audio>
 
     <div class="game-wrapper" id="game-wrapper">
@@ -309,7 +310,7 @@
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
         const gameWrapper = document.getElementById('game-wrapper');
-        const bgMusic = document.getElementById('bg-music');
+        const bonusSound = document.getElementById('bonus-sound');
 
         const GRAVITY = 0.8;
         const JUMP_POWER = -16.0; 
@@ -839,9 +840,6 @@
             liveScorePanel.classList.remove('hidden');
             updateScoreHUD();
             
-            bgMusic.currentTime = 0;
-            bgMusic.play().catch(() => { console.log('Audio autoplay prevented by browser'); });
-            
             requestAnimationFrame(gameLoop);
         }
 
@@ -1002,6 +1000,10 @@
                         obs.active = false;
                         bonusScore += 100;
                         updateScoreHUD();
+                        
+                        // Воспроизведение звука при сборе бонуса
+                        bonusSound.currentTime = 0;
+                        bonusSound.play().catch(() => { console.log('Audio autoplay prevented by browser'); });
                         
                         let color = '#fbbf24'; 
                         let textBase = bonusNames[currentLang][obs.type] || '+100';
