@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <!-- Улучшенный viewport для запрета масштабирования на мобильных -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NIS 8 March</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=Pacifico&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            overflow: hidden;
+            background: linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%);
+            user-select: none;
+            margin: 0;
+            touch-action: none;
+            overscroll-behavior: none; /* Запрет pull-to-refresh на смартфонах */
+        }
+        .fancy-title {
+            font-family: 'Pacifico', cursive;
+            text-shadow: 2px 2px 0px rgba(255,255,255,0.8);
+        }
+        .game-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 1024px;
+            height: 100vh;
+            max-height: 800px; /* Немного увеличили для современных вытянутых смартфонов */
+            margin: 0 auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            background: #e0f2fe;
+            overflow: hidden;
+            transition: background-color 1s ease;
+        }
+        @media (min-width: 600px) {
+            .game-wrapper {
+                height: 85vh;
+                border-radius: 24px;
+                margin-top: 5vh;
+                border: 8px solid #fff;
+            }
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 24px;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 20;
+            padding: 15px;
+            background: rgba(255, 240, 245, 0.4);
+            backdrop-filter: blur(3px);
+        }
+        .hidden { display: none !important; }
+        
+        .hud-container {
+            position: absolute;
+            top: 15px;
+            width: 100%;
+            padding: 0 15px;
+            z-index: 10;
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-start;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+
+        .lang-switch {
+            pointer-events: auto;
+            display: flex;
+            gap: 5px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 4px;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 2px solid #75b033;
+        }
+
+        .lang-btn {
+            background: transparent;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .lang-btn.active {
+            background: #75b033;
+            color: white;
+        }
+
+        .score-hud {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 15px;
+            border-radius: 30px;
+            font-weight: 800;
+            font-size: 1rem;
+            color: #75b033;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 2px solid #75b033;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        
+        @media (min-width: 600px) {
+            .score-hud { font-size: 1.1rem; padding: 8px 20px; gap: 15px; }
+            .lang-btn { font-size: 14px; padding: 6px 14px; }
+            .hud-container { top: 20px; padding: 0 20px; }
+        }
+
+        .high-score { color: #94a3b8; }
+        .glow-text { text-shadow: 0 0 10px rgba(244, 114, 182, 0.8); }
+    </style>
+</head>
+<body>
+
+    <audio id="bg-music" loop>
+        <source src="https://cdn.pixabay.com/audio/2022/02/22/audio_d1718ab41b.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="game-wrapper" id="game-wrapper">
+        <div class="hud-container">
+            <div class="score-hud hidden" id="live-score">
+                <span class="high-score"><span id="hi-label">ЖОҒАРЫ</span> <span id="high-score-text">00000</span></span>
+                <span><span id="score-text">🏃 0 | 🎁 0</span></span>
+            </div>
+        </div>
+        
+        <div id="ui-layer">
+            <!-- Экран старта -->
+            <div id="start-screen" class="glass-panel p-5 md:p-8 text-center w-full max-w-md shadow-2xl transform transition-all">
+                
+                <div class="flex justify-center mb-4">
+                    <div class="lang-switch">
+                        <button class="lang-btn active" data-lang="kk" onclick="setLang('kk')">ҚАЗ</button>
+                        <button class="lang-btn" data-lang="ru" onclick="setLang('ru')">РУС</button>
+                        <button class="lang-btn" data-lang="en" onclick="setLang('en')">ENG</button>
+                    </div>
+                </div>
+
+                <div class="mb-3 flex justify-center">
+                    <h2 class="text-2xl md:text-4xl font-extrabold text-[#75b033] tracking-widest uppercase drop-shadow-sm">NIS IB Astana</h2>
+                </div>
+                
+                <h1 class="fancy-title text-4xl md:text-5xl text-pink-500 mb-2 leading-tight glow-text" id="title-text">8 March</h1>
+                <h2 class="text-xs md:text-sm font-bold text-gray-700 mb-4 uppercase tracking-wider" id="subtitle-text">Мерекелік марафон</h2>
+                
+                <p class="text-gray-600 text-xs md:text-sm mb-5 font-medium" id="desc-text">
+                    Мектеп ішінде жүгіріңіз, қағазбастылықтан секіріп, марапаттар жинаңыз!
+                </p>
+                
+                <div class="bg-white/60 rounded-xl p-3 mb-5 text-sm text-gray-700 text-center font-semibold shadow-inner border border-pink-100">
+                    <p class="text-base md:text-lg" id="control-text">⬆️ Басу, Бос орын немесе Жоғары — секіру</p>
+                </div>
+                
+                <button onclick="startGame()" id="start-btn" class="w-full bg-gradient-to-r from-[#75b033] to-[#8dc63f] text-white px-8 py-3 md:py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all active:scale-95">
+                    БАСТАУ
+                </button>
+            </div>
+
+            <!-- Экран завершения -->
+            <div id="game-over-screen" class="glass-panel p-5 md:p-8 text-center w-full max-w-md shadow-2xl hidden">
+                <div class="text-4xl md:text-5xl mb-2">💐</div>
+                <h2 class="fancy-title text-3xl md:text-4xl text-pink-500 mb-2 glow-text" id="end-title">8 Наурызбен!</h2>
+                
+                <div class="bg-pink-50 rounded-xl p-3 md:p-4 mb-3 shadow-inner text-xs md:text-sm text-gray-800 font-medium italic" id="wishes-text">
+                    Құрметті мектебіміздің барша нәзік жандылары, сіздерді Халықаралық әйелдер күніне арналған мерекелік концертке ресми түрде шақырамыз!
+                </div>
+
+                <div class="bg-white rounded-2xl p-3 md:p-4 my-3 shadow-sm border border-pink-100 grid grid-cols-2 gap-3">
+                    <div class="text-center border-r border-gray-200">
+                        <p class="text-gray-500 text-[10px] md:text-xs mb-1 uppercase tracking-widest font-bold" id="dist-label">Жол</p>
+                        <p id="dist-score" class="text-xl md:text-2xl font-extrabold text-[#75b033] font-mono">0</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-gray-500 text-[10px] md:text-xs mb-1 uppercase tracking-widest font-bold" id="bonus-label">Бонустар</p>
+                        <p id="bonus-score" class="text-xl md:text-2xl font-extrabold text-[#db2777] font-mono">0</p>
+                    </div>
+                    <div class="col-span-2 text-center pt-2 border-t border-gray-200">
+                        <p class="text-gray-500 text-[10px] md:text-xs mb-1 uppercase font-bold" id="total-label">Жалпы</p>
+                        <p id="final-score" class="text-3xl md:text-4xl font-extrabold text-[#75b033] font-mono">00000</p>
+                    </div>
+                </div>
+
+                <div class="text-gray-800 mb-5">
+                    <p class="font-bold text-xs md:text-sm uppercase tracking-wide text-[#be185d]" id="invite-text">Ресми шақыру</p>
+                    <p class="text-gray-700 font-bold mt-1 text-sm md:text-base" id="time-text">Акт залы • 14:00</p>
+                </div>
+                
+                <button onclick="startGame()" id="restart-btn" class="w-full bg-pink-500 hover:bg-pink-400 text-white px-8 py-3 md:py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all active:scale-95">
+                    ҚАЙТА ОЙНАУ
+                </button>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <script>
+        // --- MULTILINGUAL SUPPORT ---
+        const translations = {
+            'kk': {
+                title: '8 Наурыз',
+                subtitle: 'Мерекелік марафон',
+                desc: 'Мектеп ішінде жүгіріңіз, қағазбастылықтан секіріп, марапаттар жинаңыз!',
+                control: '⬆️ Басу, Бос орын немесе Жоғары — секіру',
+                start: 'БАСТАУ',
+                endTitle: '8 Наурызбен!',
+                endTitleWin: 'Алақай! 8 Наурызбен!',
+                wishes: 'Құрметті мектебіміздің барша нәзік жандылары, сіздерді Халықаралық әйелдер күніне арналған мерекелік концертке ресми түрде шақырамыз!',
+                distLabel: 'Өтілген жол',
+                bonusLabel: 'Бонустар',
+                totalLabel: 'Жалпы ұпай',
+                invite: 'Ресми шақыру',
+                time: 'Акт залы • 14:00',
+                restart: 'ҚАЙТА ОЙНАУ',
+                hi: 'ЖОҒАРЫ'
+            },
+            'ru': {
+                title: '8 Марта',
+                subtitle: 'Праздничный марафон',
+                desc: 'Бегите по школе, перепрыгивайте документы и собирайте награды!',
+                control: '⬆️ Клик, Пробел или Вверх — прыжок',
+                start: 'НАЧАТЬ',
+                endTitle: 'С 8 Марта!',
+                endTitleWin: 'Ура! С 8 Марта!',
+                wishes: 'Дорогие женщины нашего коллектива, официально приглашаем вас на торжественный концерт, посвященный Международному женскому дню!',
+                distLabel: 'Пройденный путь',
+                bonusLabel: 'Бонусы',
+                totalLabel: 'Итого',
+                invite: 'Официальное приглашение',
+                time: 'Актовый зал • 14:00',
+                restart: 'ИГРАТЬ СНОВА',
+                hi: 'МАКС'
+            },
+            'en': {
+                title: '8 March',
+                subtitle: 'Holiday Marathon',
+                desc: 'Run through the school, jump over paperwork, and collect awards!',
+                control: '⬆️ Click, Space, or Up — Jump',
+                start: 'START',
+                endTitle: 'Happy March 8th!',
+                endTitleWin: 'Yay! Happy March 8th!',
+                wishes: 'Dear ladies of our team, we officially invite you to a festive concert dedicated to International Women\'s Day!',
+                distLabel: 'Distance',
+                bonusLabel: 'Bonuses',
+                totalLabel: 'Total Score',
+                invite: 'Official Invitation',
+                time: 'Assembly Hall • 14:00',
+                restart: 'PLAY AGAIN',
+                hi: 'HI'
+            }
+        };
+
+        const bonusNames = {
+            'kk': { 'TULIP': 'Қызғалдақ!', 'ROSE': 'Раушан!', 'MONEY': 'Сыйақы!', 'CERTIFICATE': 'Сертификат!', 'COFFEE': 'Кофе!', 'GOOD_GRADE': '7 бағасы!' },
+            'ru': { 'TULIP': 'Тюльпан!', 'ROSE': 'Роза!', 'MONEY': 'Премия!', 'CERTIFICATE': 'Сертификат!', 'COFFEE': 'Кофе!', 'GOOD_GRADE': 'Оценка 7!' },
+            'en': { 'TULIP': 'Tulip!', 'ROSE': 'Rose!', 'MONEY': 'Bonus!', 'CERTIFICATE': 'Certificate!', 'COFFEE': 'Coffee!', 'GOOD_GRADE': 'Grade 7!' }
+        };
+
+        let currentLang = 'kk'; 
+
+        function setLang(lang) {
+            currentLang = lang;
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.lang === lang);
+            });
+
+            const t = translations[lang];
+            document.getElementById('title-text').innerText = t.title;
+            document.getElementById('subtitle-text').innerText = t.subtitle;
+            document.getElementById('desc-text').innerText = t.desc;
+            document.getElementById('control-text').innerText = t.control;
+            document.getElementById('start-btn').innerText = t.start;
+            document.getElementById('end-title').innerText = t.endTitle;
+            document.getElementById('wishes-text').innerText = t.wishes;
+            document.getElementById('dist-label').innerText = t.distLabel;
+            document.getElementById('bonus-label').innerText = t.bonusLabel;
+            document.getElementById('total-label').innerText = t.totalLabel;
+            document.getElementById('invite-text').innerText = t.invite;
+            document.getElementById('time-text').innerText = t.time;
+            document.getElementById('restart-btn').innerText = t.restart;
+            document.getElementById('hi-label').innerText = t.hi;
+        }
+
+        // --- GAME SETUP & CONSTANTS ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiLayer = document.getElementById('ui-layer');
+        const liveScorePanel = document.getElementById('live-score');
+        const scoreText = document.getElementById('score-text');
+        const highScoreText = document.getElementById('high-score-text');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const gameWrapper = document.getElementById('game-wrapper');
+        const bgMusic = document.getElementById('bg-music');
+
+        const GRAVITY = 0.8;
+        const JUMP_POWER = -16.0; 
+        const BASE_SPEED = 9.1; // +30% speed
+        const SPEED_INC = 0.00065; 
+        const LEVEL_DURATION = 300; 
+        const WIN_SCORE = 1400; 
+
+        // --- GLOBAL VARIABLES DECLARATION ---
+        let WIDTH, HEIGHT, groundY;
+        let gameActive = false;
+        let isWinning = false;
+        let distanceScore = 0;
+        let bonusScore = 0;
+        let distanceCount = 0;
+        let gameSpeed = BASE_SPEED;
+        let currentLevel = 0; 
+        let bgOffset = 0;
+        
+        let player = {
+            x: 0, y: 0, width: 40, height: 80,
+            dy: 0, isJumping: false, runFrame: 0
+        };
+
+        let obstacles = [];
+        let particles = [];
+        let floatingTexts = [];
+        let tulips = []; 
+        let fireworks = []; 
+        
+        let highScore = localStorage.getItem('nisRunHighScore_v8') || 0;
+        highScoreText.innerText = String(Math.floor(highScore)).padStart(5, '0');
+
+        function initCanvas() {
+            WIDTH = gameWrapper.clientWidth;
+            HEIGHT = gameWrapper.clientHeight;
+            canvas.width = WIDTH * window.devicePixelRatio;
+            canvas.height = HEIGHT * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            groundY = HEIGHT * 0.8;
+            
+            // Корректная позиция при изменении размера окна
+            player.x = WIDTH * 0.1;
+            if (player.y + player.height >= groundY || !gameActive) {
+                player.y = groundY - player.height;
+            }
+        }
+        window.addEventListener('resize', initCanvas);
+        initCanvas();
+
+        // --- CLASSES ---
+
+        class Obstacle {
+            constructor(forcedType = null, forcedX = null) {
+                this.x = forcedX !== null ? forcedX : WIDTH;
+                this.active = true;
+                
+                if (forcedType) {
+                    this.type = forcedType;
+                    this.isGood = false;
+                    this.w = 30; this.h = 50; 
+                    this.y = groundY - this.h;
+                    return;
+                }
+
+                let isBonus = Math.random() > 0.6;
+                
+                if (!isBonus) {
+                    this.isGood = false;
+                    const obstacleTypes = ['BAD_GRADE', 'PAPER_STACK', 'FURNITURE', 'PLANT'];
+                    this.type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+                    
+                    if (this.type === 'BAD_GRADE') {
+                        this.w = 40; this.h = 40;
+                        this.y = groundY - this.h - 10;
+                        this.grade = Math.random() > 0.5 ? '3' : '4';
+                    } else if (this.type === 'PAPER_STACK') {
+                        this.w = 45; this.h = 55;
+                        this.y = groundY - this.h;
+                    } else if (this.type === 'FURNITURE') {
+                        this.w = 50; this.h = 45;
+                        this.y = groundY - this.h;
+                        this.furType = Math.random() > 0.5 ? 'DESK' : 'CHAIR';
+                    } else if (this.type === 'PLANT') {
+                        this.w = 40; this.h = 60;
+                        this.y = groundY - this.h;
+                    }
+                } else {
+                    this.isGood = true;
+                    const bonusTypes = ['FLOWER', 'MONEY', 'CERTIFICATE', 'COFFEE', 'GOOD_GRADE'];
+                    this.type = bonusTypes[Math.floor(Math.random() * bonusTypes.length)];
+                    this.w = 40; this.h = 40;
+                    
+                    this.y = groundY - player.height - 30 - Math.random() * 40;
+                    if (this.type === 'FLOWER') this.flowerType = Math.random() > 0.5 ? 'TULIP' : 'ROSE';
+                    if (this.type === 'GOOD_GRADE') this.grade = '7';
+                }
+            }
+            update() { this.x -= gameSpeed; }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                if (!this.isGood) {
+                    if (this.type === 'TURNSTILE') {
+                        ctx.fillStyle = '#64748b'; ctx.fillRect(10, 0, 10, this.h); 
+                        ctx.fillStyle = '#94a3b8'; ctx.fillRect(0, 15, 30, 5); 
+                        ctx.fillStyle = '#ef4444'; ctx.fillRect(10, 0, 10, 5); 
+                    } else if (this.type === 'BAD_GRADE') {
+                        ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(this.w/2, this.h/2, 20, 0, Math.PI*2); ctx.fill();
+                        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+                        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 24px Montserrat'; ctx.textAlign = 'center'; ctx.fillText(this.grade, this.w/2, this.h/2 + 8);
+                    } else if (this.type === 'PAPER_STACK') {
+                        ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 5, this.w, this.h - 5);
+                        ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.strokeRect(0, 5, this.w, this.h - 5);
+                        ctx.fillStyle = '#ffffff'; ctx.fillRect(5, 0, this.w - 10, this.h); ctx.strokeRect(5, 0, this.w - 10, this.h);
+                        ctx.fillStyle = '#e2e8f0';
+                        for(let i=10; i<this.h-10; i+=6) { ctx.fillRect(10, i, this.w - 20, 3); }
+                        ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(this.w/2, this.h/2, 14, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#ffffff'; ctx.fillRect(this.w/2 - 7, this.h/2 - 2, 14, 4); 
+                    } else if (this.type === 'FURNITURE') {
+                        ctx.fillStyle = '#78350f'; 
+                        if (this.furType === 'DESK') {
+                            ctx.fillRect(0, 0, this.w, 8); 
+                            ctx.fillStyle = '#64748b'; ctx.fillRect(5, 8, 4, this.h - 8); ctx.fillRect(this.w - 9, 8, 4, this.h - 8);
+                        } else {
+                            ctx.fillRect(10, 0, 5, this.h); 
+                            ctx.fillRect(10, this.h/2, this.w - 10, 5); 
+                            ctx.fillStyle = '#64748b'; ctx.fillRect(this.w - 10, this.h/2 + 5, 4, this.h/2 - 5); 
+                        }
+                    } else if (this.type === 'PLANT') {
+                        ctx.fillStyle = '#b45309'; ctx.beginPath(); ctx.moveTo(5, this.h); ctx.lineTo(0, this.h - 20); ctx.lineTo(this.w, this.h - 20); ctx.lineTo(this.w - 5, this.h); ctx.fill(); 
+                        ctx.fillStyle = '#16a34a'; ctx.beginPath(); ctx.arc(this.w/2, 20, 20, 0, Math.PI*2); ctx.fill(); 
+                        ctx.beginPath(); ctx.arc(10, 30, 15, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(30, 30, 15, 0, Math.PI*2); ctx.fill();
+                    }
+                } else {
+                    ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 15;
+
+                    if (this.type === 'FLOWER') {
+                        ctx.shadowColor = this.flowerType === 'TULIP' ? '#fbbf24' : '#f43f5e';
+                        ctx.fillStyle = '#4ade80'; ctx.fillRect(this.w/2 - 2, 20, 4, 20); 
+                        ctx.beginPath(); ctx.ellipse(this.w/2 - 6, 30, 8, 3, Math.PI/4, 0, Math.PI*2); ctx.fill(); 
+                        if (this.flowerType === 'TULIP') {
+                            ctx.fillStyle = '#fbbf24'; 
+                            ctx.beginPath(); ctx.moveTo(this.w/2, 0); ctx.lineTo(10, 20); ctx.lineTo(30, 20); ctx.fill();
+                        } else {
+                            ctx.fillStyle = '#f43f5e'; 
+                            ctx.beginPath(); ctx.arc(this.w/2, 10, 12, 0, Math.PI*2); ctx.fill();
+                            ctx.fillStyle = '#fda4af'; ctx.beginPath(); ctx.arc(this.w/2 - 3, 7, 5, 0, Math.PI*2); ctx.fill();
+                        }
+                    } else if (this.type === 'MONEY') {
+                        ctx.shadowColor = '#10b981';
+                        ctx.fillStyle = '#22c55e'; ctx.fillRect(0, 10, this.w, 20); 
+                        ctx.strokeStyle = '#15803d'; ctx.lineWidth = 2; ctx.strokeRect(0, 10, this.w, 20);
+                        ctx.fillStyle = '#f8fafc'; ctx.fillRect(15, 10, 10, 20); 
+                        ctx.fillStyle = '#15803d'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('₸', this.w/2, 26);
+                    } else if (this.type === 'CERTIFICATE') {
+                        ctx.fillStyle = '#f8fafc'; ctx.fillRect(5, 0, 30, 40); 
+                        ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.strokeRect(5, 0, 30, 40);
+                        ctx.fillStyle = '#94a3b8'; ctx.fillRect(10, 10, 20, 2); ctx.fillRect(10, 15, 15, 2);
+                        ctx.fillStyle = '#b91c1c'; ctx.beginPath(); ctx.moveTo(18, 30); ctx.lineTo(15, 40); ctx.lineTo(20, 35); ctx.lineTo(25, 40); ctx.lineTo(22, 30); ctx.fill();
+                        ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(20, 30, 6, 0, Math.PI*2); ctx.fill();
+                    } else if (this.type === 'COFFEE') {
+                        ctx.shadowColor = '#78350f';
+                        ctx.fillStyle = '#f8fafc'; ctx.beginPath(); ctx.moveTo(8, this.h); ctx.lineTo(0, 10); ctx.lineTo(this.w, 10); ctx.lineTo(this.w - 8, this.h); ctx.fill(); 
+                        ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 0, this.w, 10); ctx.fillRect(5, -5, this.w - 10, 5); 
+                        ctx.fillStyle = '#16a34a'; ctx.beginPath(); ctx.arc(this.w/2, this.h/2 + 5, 8, 0, Math.PI*2); ctx.fill(); 
+                    } else if (this.type === 'GOOD_GRADE') {
+                        ctx.shadowColor = '#10b981';
+                        ctx.fillStyle = '#ffffff'; ctx.fillRect(5, 0, 30, 40); ctx.strokeRect(5, 0, 30, 40);
+                        ctx.fillStyle = '#16a34a'; ctx.font = 'bold 30px "Montserrat"'; ctx.textAlign = 'center'; ctx.fillText(this.grade, this.w/2, 32);
+                    }
+                    ctx.shadowBlur = 0;
+                }
+                ctx.restore();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 5 + 3;
+                this.speedX = Math.random() * 6 - 3;
+                this.speedY = Math.random() * -6 - 2;
+                this.life = 1.0;
+            }
+            update() { this.x += this.speedX; this.y += this.speedY; this.life -= 0.03; }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class FloatingText {
+            constructor(text, x, y, color) {
+                this.text = text; this.x = x; this.y = y; this.color = color; this.life = 1.0;
+            }
+            update() { this.y -= 2.0; this.life -= 0.02; }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = 'rgba(255,255,255,0.8)'; ctx.shadowBlur = 4;
+                ctx.font = 'bold 22px Montserrat'; ctx.textAlign = 'center';
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class Tulip {
+            constructor() { this.reset(true); }
+            reset(randomY = false) {
+                this.x = Math.random() * WIDTH;
+                this.y = randomY ? -Math.random() * HEIGHT * 2 : -50; 
+                this.speedY = Math.random() * 3 + 2;
+                this.speedX = Math.random() * 2 - 1;
+                this.rot = Math.random() * Math.PI * 2;
+                this.rotSpeed = (Math.random() - 0.5) * 0.1;
+                this.scale = Math.random() * 0.5 + 0.5;
+                this.color = Math.random() > 0.5 ? '#f43f5e' : '#fbbf24'; 
+            }
+            update() {
+                this.y += this.speedY; this.x += this.speedX; this.rot += this.rotSpeed;
+                if (this.y > HEIGHT + 50) this.reset();
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y); ctx.rotate(this.rot); ctx.scale(this.scale, this.scale);
+                ctx.fillStyle = this.color; 
+                ctx.beginPath();
+                ctx.moveTo(0, 8); ctx.quadraticCurveTo(-10, -5, -8, -12); ctx.lineTo(-4, -6);
+                ctx.lineTo(0, -15); ctx.lineTo(4, -6); ctx.quadraticCurveTo(10, -5, 8, -12);
+                ctx.closePath(); ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class FireworkParticle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                let angle = Math.random() * Math.PI * 2;
+                let speed = Math.random() * 5 + 1;
+                this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+                this.life = 1.0; this.decay = Math.random() * 0.02 + 0.01;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.vy += 0.05; this.life -= this.decay; }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, 2, 0, Math.PI*2); ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class Firework {
+            constructor() {
+                this.x = Math.random() * WIDTH;
+                this.y = HEIGHT;
+                this.targetY = Math.random() * (HEIGHT / 2) + 50;
+                this.speed = Math.random() * 4 + 4;
+                this.particles = [];
+                this.exploded = false;
+                this.color = `hsl(${Math.random()*360}, 100%, 50%)`;
+            }
+            update() {
+                if (!this.exploded) {
+                    this.y -= this.speed;
+                    if (this.y <= this.targetY) {
+                        this.exploded = true;
+                        for(let i=0; i<40; i++) this.particles.push(new FireworkParticle(this.x, this.y, this.color));
+                    }
+                } else {
+                    for(let i=this.particles.length-1; i>=0; i--) {
+                        let p = this.particles[i]; p.update();
+                        if (p.life <= 0) this.particles.splice(i, 1);
+                    }
+                }
+            }
+            draw() {
+                if (!this.exploded) {
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI*2); ctx.fill();
+                } else {
+                    this.particles.forEach(p => p.draw());
+                }
+            }
+        }
+
+        // --- DRAW FUNCTIONS ---
+
+        function drawStar(cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = Math.PI / 2 * 3;
+            let x = cx, y = cy, step = Math.PI / spikes;
+            ctx.beginPath(); ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius; y = cy + Math.sin(rot) * outerRadius; ctx.lineTo(x, y); rot += step;
+                x = cx + Math.cos(rot) * innerRadius; y = cy + Math.sin(rot) * innerRadius; ctx.lineTo(x, y); rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius); ctx.closePath(); ctx.fill();
+        }
+
+        function drawTV(x, y) {
+            ctx.fillStyle = '#1e293b'; ctx.fillRect(x, y, 100, 60);
+            ctx.fillStyle = '#334155'; ctx.fillRect(x + 5, y + 5, 90, 50);
+            ctx.fillStyle = '#3b82f6'; ctx.fillRect(x + 15, y + 35, 10, 20);
+            ctx.fillStyle = '#10b981'; ctx.fillRect(x + 30, y + 25, 10, 30);
+            ctx.fillStyle = '#f59e0b'; ctx.fillRect(x + 45, y + 15, 10, 40);
+            ctx.fillStyle = '#ef4444'; ctx.fillRect(x + 60, y + 40, 10, 15);
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(x + 15, y + 30); ctx.lineTo(x + 35, y + 20); ctx.lineTo(x + 50, y + 10); ctx.lineTo(x + 65, y + 30); ctx.stroke();
+        }
+
+        function drawSofa(x, yBase) {
+            ctx.fillStyle = '#0ea5e9'; ctx.fillRect(x, yBase - 40, 100, 30); 
+            ctx.fillRect(x - 10, yBase - 25, 20, 20); ctx.fillRect(x + 90, yBase - 25, 20, 20); 
+            ctx.fillStyle = '#0284c7'; ctx.fillRect(x, yBase - 20, 100, 15); 
+            ctx.fillStyle = '#334155'; ctx.fillRect(x + 5, yBase - 5, 5, 5); ctx.fillRect(x + 90, yBase - 5, 5, 5);
+        }
+
+        function drawWindows(startX) {
+            ctx.fillStyle = '#e0f2fe'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4;
+            for(let w = startX + 150; w < startX + 2400; w += 500) {
+                ctx.fillRect(w, groundY - 260, 80, 180); ctx.strokeRect(w, groundY - 260, 80, 180);
+                ctx.beginPath(); ctx.moveTo(w, groundY - 170); ctx.lineTo(w + 80, groundY - 170); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(w + 40, groundY - 260); ctx.lineTo(w + 40, groundY - 80); ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.beginPath(); ctx.moveTo(w + 10, groundY - 250); ctx.lineTo(w + 30, groundY - 250); ctx.lineTo(w + 20, groundY - 100); ctx.lineTo(w, groundY - 100); ctx.fill();
+                ctx.fillStyle = '#e0f2fe';
+            }
+        }
+
+        function drawBackground() {
+            if (!isWinning) bgOffset = (bgOffset - gameSpeed * 0.5) % 2400;
+            
+            const drawRepeated = (func) => {
+                for(let i = bgOffset - 2400; i < WIDTH + 2400; i += 2400) {
+                    ctx.save(); ctx.translate(i, 0); func(i); ctx.restore();
+                }
+            };
+
+            if (currentLevel === 0) {
+                gameWrapper.style.backgroundColor = '#e0f2fe';
+                ctx.fillStyle = '#a3e635'; ctx.fillRect(0, groundY, WIDTH, HEIGHT - groundY);
+                drawRepeated(() => {
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    for (let c=100; c<2400; c+=400) {
+                        ctx.beginPath(); ctx.arc(c, 100, 30, 0, Math.PI*2); ctx.arc(c+40, 90, 40, 0, Math.PI*2); ctx.arc(c+80, 100, 30, 0, Math.PI*2); ctx.fill();
+                    }
+                    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 4;
+                    for(let j=0; j<2400; j+=40) { ctx.beginPath(); ctx.moveTo(j, groundY); ctx.lineTo(j, groundY - 60); ctx.stroke(); }
+                    ctx.beginPath(); ctx.moveTo(0, groundY - 40); ctx.lineTo(2400, groundY - 40); ctx.stroke();
+                    for (let d=100; d<2400; d+=500) {
+                        ctx.fillStyle = '#166534'; ctx.beginPath(); ctx.moveTo(d, groundY); ctx.lineTo(d+50, groundY - 140); ctx.lineTo(d+100, groundY); ctx.fill();
+                        ctx.fillStyle = '#78350f'; ctx.fillRect(d+200, groundY - 60, 20, 60);
+                        ctx.fillStyle = '#15803d'; ctx.beginPath(); ctx.arc(d+210, groundY - 80, 45, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#16a34a'; ctx.beginPath(); ctx.arc(d+150, groundY - 10, 30, Math.PI, 0); ctx.fill();
+                        ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(d+140, groundY - 20, 5, 0, Math.PI*2); ctx.arc(d+160, groundY - 15, 5, 0, Math.PI*2); ctx.fill();
+                    }
+                });
+            } else if (currentLevel === 1) {
+                gameWrapper.style.backgroundColor = '#fdf2f8'; 
+                ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, groundY, WIDTH, HEIGHT - groundY); 
+                ctx.fillStyle = '#fbcfe8'; ctx.fillRect(0, groundY - 20, WIDTH, 20); 
+                drawRepeated((startX) => {
+                    drawWindows(0);
+                    ctx.fillStyle = '#ef4444'; ctx.fillRect(0, groundY + 10, 2400, 20); 
+                    drawTV(100, groundY - 100); 
+                    ctx.font = 'bold 42px "Montserrat"';
+                    ctx.fillStyle = '#3b82f6'; ctx.fillText('ib', 400, groundY - 180);
+                    ctx.fillStyle = '#f97316'; ctx.fillText('CIS', 900, groundY - 180);
+                    ctx.fillStyle = '#22c55e'; ctx.fillText('kiva', 1400, groundY - 180);
+                    ctx.fillStyle = '#bae6fd'; ctx.fillRect(1800, groundY - 200, 140, 180); 
+                    ctx.fillStyle = '#e2e8f0'; ctx.fillRect(1800, groundY - 210, 140, 10); 
+                    const time = Date.now() / 20;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2;
+                    for (let drop = 0; drop < 7; drop++) {
+                        let dropY = (time + drop * 30) % 180;
+                        ctx.beginPath(); ctx.moveTo(1820 + drop * 15, groundY - 200 + dropY); ctx.lineTo(1820 + drop * 15, groundY - 180 + dropY); ctx.stroke();
+                    }
+                    const flagColors = ['#ef4444', '#3b82f6', '#10b981', '#fbbf24', '#8b5cf6'];
+                    for(let f=0; f<5; f++) { ctx.fillStyle = flagColors[f]; ctx.fillRect(1820 + f*22, groundY - 225, 18, 12); }
+                    ctx.fillStyle = '#1e293b'; ctx.fillRect(2100, groundY - 60, 50, 60); 
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(2100, groundY - 30, 50, 8); 
+                    for(let k=2102; k<2150; k+=8) { ctx.fillStyle='#000'; ctx.fillRect(k, groundY-30, 4, 5); }
+                    ctx.fillStyle = '#475569'; ctx.fillRect(2120, groundY - 40, 18, 40); 
+                    ctx.fillStyle = '#ffdbac'; ctx.beginPath(); ctx.arc(2129, groundY - 45, 9, 0, Math.PI*2); ctx.fill(); 
+                    ctx.fillStyle = '#b45309'; ctx.beginPath(); ctx.ellipse(2170, groundY - 20, 10, 15, Math.PI/5, 0, Math.PI*2); ctx.fill(); 
+                    ctx.fillRect(2165, groundY - 55, 4, 35);
+                    ctx.fillStyle = '#ea580c'; ctx.beginPath(); ctx.ellipse(2195, groundY - 22, 12, 18, -Math.PI/6, 0, Math.PI*2); ctx.fill(); 
+                    ctx.fillRect(2188, groundY - 60, 4, 38);
+                });
+            } else if (currentLevel === 2) {
+                gameWrapper.style.backgroundColor = '#fef3c7'; 
+                ctx.fillStyle = '#e2e8f0'; ctx.fillRect(0, groundY, WIDTH, HEIGHT - groundY); 
+                drawRepeated(() => {
+                    drawWindows(0);
+                    ctx.strokeStyle = '#fde68a'; ctx.lineWidth = 4;
+                    for(let j=0; j<2400; j+=200) { ctx.strokeRect(j, 50, 150, groundY - 50); }
+                    drawTV(600, groundY - 100); drawSofa(600, groundY); drawSofa(1800, groundY); 
+                    ctx.fillStyle = '#8b5cf6'; ctx.fillRect(400, groundY - 160, 60, 80); ctx.fillStyle = '#a78bfa'; ctx.fillRect(405, groundY - 155, 50, 70);
+                    ctx.fillStyle = '#10b981'; ctx.fillRect(1000, groundY - 160, 80, 60); ctx.fillStyle = '#34d399'; ctx.fillRect(1005, groundY - 155, 70, 50);
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(1600, groundY - 160, 50, 40); ctx.fillStyle = '#3b82f6'; ctx.beginPath(); ctx.arc(1625, groundY - 140, 10, 0, Math.PI*2); ctx.fill();
+                });
+            } else if (currentLevel === 3) {
+                gameWrapper.style.backgroundColor = '#f0fdf4'; 
+                ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, groundY, WIDTH, HEIGHT - groundY); 
+                drawRepeated(() => {
+                    drawWindows(0);
+                    ctx.fillStyle = '#fbbf24';
+                    for (let s=100; s<2400; s+=400) { drawStar(s, 40, 5, 30, 15); drawStar(s+200, 60, 5, 40, 20); }
+                    drawTV(1200, groundY - 100); drawSofa(35, groundY); drawSofa(1400, groundY);
+                    for (let table=200; table<2400; table+=600) {
+                        ctx.fillStyle = '#cbd5e1'; ctx.fillRect(table, groundY - 40, 100, 5); ctx.fillRect(table+45, groundY - 35, 10, 35);
+                        ctx.fillStyle = '#f8fafc'; ctx.beginPath(); ctx.arc(table+20, groundY - 40, 10, Math.PI, 0); ctx.fill(); 
+                        ctx.fillStyle = '#fbbf24'; ctx.fillRect(table+15, groundY - 42, 10, 2); 
+                        ctx.fillStyle = '#10b981'; ctx.fillRect(table+60, groundY - 60, 15, 20); 
+                        ctx.fillStyle = '#f8fafc'; ctx.fillRect(table+67, groundY - 65, 2, 5); 
+                        ctx.fillStyle = '#cbd5e1'; ctx.fillRect(table+250, groundY - 40, 100, 5); ctx.fillRect(table+295, groundY - 35, 10, 35);
+                        ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.ellipse(table+270, groundY - 42, 12, 3, 0, 0, Math.PI*2); ctx.fill(); 
+                        ctx.fillStyle = '#d97706'; ctx.beginPath(); ctx.arc(table+270, groundY - 45, 8, Math.PI, 0); ctx.fill(); 
+                        ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(table+300, groundY - 45, 5, 0, Math.PI*2); ctx.fill(); 
+                        ctx.fillStyle = '#3b82f6'; ctx.fillRect(table+320, groundY - 55, 10, 15); 
+                    }
+                });
+            } else {
+                gameWrapper.style.backgroundColor = '#4c1d95'; 
+                ctx.fillStyle = '#ef4444'; 
+                ctx.fillRect(0, groundY, WIDTH, HEIGHT - groundY); 
+                drawRepeated(() => {
+                    ctx.fillStyle = '#9f1239'; 
+                    for(let c=0; c<2400; c+=140) {
+                        ctx.beginPath(); ctx.ellipse(c + 70, 0, 70, 160, 0, 0, Math.PI*2); ctx.fill();
+                    }
+                });
+            }
+            
+            ctx.strokeStyle = (currentLevel === 4) ? '#b91c1c' : '#94a3b8'; 
+            ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(WIDTH, groundY); ctx.stroke();
+        }
+
+        function drawPlayer() {
+            ctx.save();
+            ctx.translate(player.x, player.y);
+
+            const legSwing = player.isJumping || isWinning ? 0 : Math.sin(player.runFrame) * 10;
+            const bob = player.isJumping || isWinning ? 0 : Math.abs(Math.sin(player.runFrame * 2)) * 2;
+            
+            ctx.translate(0, -bob);
+
+            // Ноги
+            ctx.fillStyle = '#1f2937'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(player.width/2 + 5, player.height - 25); ctx.lineTo(player.width/2 + 5 - legSwing, player.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(player.width/2 - 5, player.height - 25); ctx.lineTo(player.width/2 - 5 + legSwing, player.height); ctx.stroke();
+
+            // Платье 
+            ctx.fillStyle = '#be185d';
+            ctx.beginPath(); ctx.moveTo(5, player.height - 25); ctx.lineTo(player.width - 5, player.height - 25); ctx.lineTo(player.width, 25); ctx.lineTo(0, 25); ctx.fill();
+            ctx.fillStyle = '#831843'; ctx.fillRect(2, 45, player.width - 4, 8); 
+
+            // Голова
+            ctx.fillStyle = '#ffdbac';
+            const headX = player.width / 2;
+            const headY = 14;
+            ctx.fillRect(headX - 4, 20, 8, 8); 
+            ctx.beginPath(); ctx.arc(headX, headY, 15, 0, Math.PI*2); ctx.fill();
+
+            // Лицо
+            ctx.fillStyle = '#3e2723'; 
+            ctx.beginPath(); ctx.arc(headX + 4, headY - 2, 2, 0, Math.PI*2); ctx.fill(); 
+            ctx.beginPath(); ctx.arc(headX - 4, headY - 2, 2, 0, Math.PI*2); ctx.fill(); 
+            ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(headX, headY + 3, 5, 0.2, Math.PI - 0.2); ctx.stroke(); 
+
+            // Волосы (Аккуратная прическа с пучком, открытое лицо)
+            ctx.fillStyle = '#3e2723';
+            // Основной объем волос (полукруг сверху, не закрывающий глаза)
+            ctx.beginPath(); 
+            ctx.arc(headX, headY - 4, 14.5, Math.PI, 0); 
+            ctx.fill(); 
+            
+            // Пучок сзади
+            ctx.beginPath(); 
+            ctx.arc(headX - 15, headY - 2, 8, 0, Math.PI*2); 
+            ctx.fill();
+            
+            // Резинка в цвет платья
+            ctx.fillStyle = '#831843'; 
+            ctx.fillRect(headX - 11, headY - 6, 4, 8);
+
+            // Рука
+            const armSwing = player.isJumping || isWinning ? 0 : -Math.sin(player.runFrame) * 12;
+            ctx.strokeStyle = '#be185d'; ctx.lineWidth = 6;
+            ctx.beginPath(); ctx.moveTo(player.width/2, 30); ctx.lineTo(player.width/2 + armSwing, 50); ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // --- CORE LOGIC ---
+
+        function updateScoreHUD() {
+            scoreText.innerHTML = `<span title="Жол / Путь">🏃 ${distanceScore}</span> | <span title="Бонустар / Бонусы">🎁 ${bonusScore}</span>`;
+        }
+
+        function startGame() {
+            gameActive = true;
+            isWinning = false;
+            distanceScore = 0;
+            bonusScore = 0;
+            distanceCount = 0;
+            currentLevel = 0;
+            gameSpeed = BASE_SPEED;
+            obstacles = [];
+            particles = [];
+            floatingTexts = [];
+            tulips = [];
+            fireworks = [];
+            bgOffset = 0;
+            
+            player.x = WIDTH * 0.1;
+            player.y = groundY - player.height;
+            player.dy = 0;
+            player.isJumping = false;
+            player.runFrame = 0;
+            
+            uiLayer.classList.add('hidden');
+            liveScorePanel.classList.remove('hidden');
+            updateScoreHUD();
+            
+            bgMusic.currentTime = 0;
+            bgMusic.play().catch(() => { console.log('Audio autoplay prevented by browser'); });
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function endGame() {
+            gameActive = false;
+            let total = distanceScore + bonusScore;
+            if (total > highScore) {
+                highScore = total;
+                localStorage.setItem('nisRunHighScore_v8', highScore);
+                if (document.getElementById('high-score-text')) {
+                    document.getElementById('high-score-text').innerText = String(Math.floor(highScore)).padStart(5, '0');
+                }
+            }
+            uiLayer.classList.remove('hidden');
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            liveScorePanel.classList.add('hidden');
+            
+            document.getElementById('end-title').innerText = translations[currentLang].endTitle;
+            document.getElementById('dist-score').innerText = distanceScore;
+            document.getElementById('bonus-score').innerText = bonusScore;
+            document.getElementById('final-score').innerText = total;
+        }
+
+        function triggerWin() {
+            gameActive = false;
+            isWinning = true;
+            
+            let total = distanceScore + bonusScore;
+            if (total > highScore) {
+                highScore = total;
+                localStorage.setItem('nisRunHighScore_v8', highScore);
+                if (document.getElementById('high-score-text')) {
+                    document.getElementById('high-score-text').innerText = String(Math.floor(highScore)).padStart(5, '0');
+                }
+            }
+
+            for (let i = 0; i < 200; i++) tulips.push(new Tulip());
+            
+            player.isJumping = false;
+            player.y = groundY - player.height;
+            
+            requestAnimationFrame(winLoop);
+            
+            setTimeout(() => {
+                uiLayer.classList.remove('hidden');
+                startScreen.classList.add('hidden');
+                gameOverScreen.classList.remove('hidden');
+                liveScorePanel.classList.add('hidden');
+                
+                document.getElementById('end-title').innerText = translations[currentLang].endTitleWin;
+                document.getElementById('dist-score').innerText = distanceScore;
+                document.getElementById('bonus-score').innerText = bonusScore;
+                document.getElementById('final-score').innerText = total;
+            }, 4000); 
+        }
+
+        function checkCollision(p, obs) {
+            const m = 10; 
+            return (
+                p.x + m < obs.x + obs.w - m &&
+                p.x + p.width - m > obs.x + m &&
+                p.y + m < obs.y + obs.h - m &&
+                p.y + p.height - m > obs.y + m
+            );
+        }
+
+        function createParticles(x, y, color, count) {
+            for(let i=0; i<count; i++) particles.push(new Particle(x, y, color));
+        }
+
+        function winLoop() {
+            if (!isWinning) return;
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+            drawBackground();
+
+            if (Math.random() < 0.08) fireworks.push(new Firework());
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+                fireworks[i].update(); fireworks[i].draw();
+                if (fireworks[i].exploded && fireworks[i].particles.length === 0) fireworks.splice(i, 1);
+            }
+
+            // Идем до центра экрана
+            if (player.x < WIDTH / 2 - player.width / 2) {
+                player.x += 3;
+                player.runFrame += 0.15;
+            } else {
+                player.runFrame = 0; 
+            }
+
+            drawPlayer();
+            tulips.forEach(t => { t.update(); t.draw(); });
+
+            requestAnimationFrame(winLoop);
+        }
+
+        function gameLoop() {
+            if (!gameActive) return;
+
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+            distanceCount += gameSpeed;
+            gameSpeed += SPEED_INC;
+            
+            if (distanceCount > 15) {
+                distanceScore += 1;
+                distanceCount = 0;
+                updateScoreHUD();
+                
+                let newLevel = Math.floor(distanceScore / LEVEL_DURATION);
+                if (newLevel > 4) newLevel = 4; 
+
+                if (newLevel !== currentLevel) {
+                    currentLevel = newLevel;
+                    let text = currentLevel === 4 ? 'ФИНАЛ!' : 'Level ' + (currentLevel+1);
+                    floatingTexts.push(new FloatingText(text, WIDTH/2, HEIGHT/3, '#db2777'));
+                    
+                    if (currentLevel === 1) {
+                        obstacles.push(new Obstacle('TURNSTILE', WIDTH + 100));
+                    }
+                }
+                
+                if (distanceScore >= WIN_SCORE && currentLevel === 4) {
+                    triggerWin();
+                    return; 
+                }
+            }
+
+            player.dy += GRAVITY;
+            player.y += player.dy;
+
+            if (player.y + player.height >= groundY) {
+                player.y = groundY - player.height;
+                player.dy = 0;
+                player.isJumping = false;
+            } else {
+                player.isJumping = true;
+            }
+
+            if (!player.isJumping) player.runFrame += gameSpeed * 0.05;
+
+            if (distanceScore < WIN_SCORE - 100) {
+                let minDistance = Math.max(350, 700 - gameSpeed * 20);
+                if (obstacles.length === 0 || WIDTH - obstacles[obstacles.length-1].x > minDistance) {
+                    if (Math.random() < 0.05) obstacles.push(new Obstacle());
+                }
+            }
+
+            drawBackground();
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.update();
+                obs.draw();
+
+                if (obs.active && checkCollision(player, obs)) {
+                    if (obs.isGood) {
+                        obs.active = false;
+                        bonusScore += 100;
+                        updateScoreHUD();
+                        
+                        let color = '#fbbf24'; 
+                        let textBase = bonusNames[currentLang][obs.type] || '+100';
+                        if (obs.type === 'FLOWER') textBase = bonusNames[currentLang][obs.flowerType];
+                        let fullText = textBase + ' +100';
+                        
+                        if (obs.type === 'FLOWER') color = obs.flowerType === 'TULIP' ? '#fbbf24' : '#f43f5e';
+                        else if (obs.type === 'MONEY') color = '#10b981';
+                        else if (obs.type === 'CERTIFICATE') color = '#ef4444'; 
+                        else if (obs.type === 'GOOD_GRADE') color = '#10b981';
+                        else if (obs.type === 'COFFEE') color = '#78350f';
+                        
+                        createParticles(obs.x + obs.w/2, obs.y + obs.h/2, color, 20);
+                        floatingTexts.push(new FloatingText(fullText, obs.x + obs.w/2, obs.y, color));
+                    } else {
+                        endGame();
+                        return;
+                    }
+                } else if (obs.x + obs.w < 0) {
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i]; p.update(); p.draw();
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let ft = floatingTexts[i]; ft.update(); ft.draw();
+                if (ft.life <= 0) floatingTexts.splice(i, 1);
+            }
+
+            drawPlayer();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- INPUT HANDLING ---
+        function handleJump() {
+            if (gameActive && !player.isJumping) {
+                player.dy = JUMP_POWER;
+                player.isJumping = true;
+                createParticles(player.x + player.width/2, groundY, '#cbd5e1', 8);
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+                e.preventDefault();
+                if (!gameActive && (!startScreen.classList.contains('hidden') || !gameOverScreen.classList.contains('hidden'))) startGame();
+                else handleJump();
+            }
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.target.closest('.lang-switch')) return;
+            e.preventDefault();
+            if (!gameActive) startGame(); else handleJump();
+        }, { passive: false });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (!e.target.closest('.lang-switch')) {
+                if (gameActive) handleJump();
+                else if (!startScreen.classList.contains('hidden') || !gameOverScreen.classList.contains('hidden')) startGame();
+            }
+        });
+
+        // Инициализация
+        setLang(currentLang);
+        drawBackground();
+        drawPlayer();
+
+    </script>
+</body>
+</html>
